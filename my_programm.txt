@@ -1,0 +1,10 @@
+$Messi$
+/:first_half
+    Messi score 0 whistle
+    SSUUII Messi
+/:second_half
+
+$Ronaldo$
+/:first_half
+    transfer Messi
+/:second_half
