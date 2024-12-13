@@ -1,10 +1,3 @@
-$Messi$
-/:first_half
-    Messi score 0 whistle
-    SSUUII Messi
-/:second_half
+Messi  score  4 goal 4 assist stadium_open 5 foul 2 stadium_close
 
-$Ronaldo$
-/:first_half
-    transfer Messi
-/:second_half
+
