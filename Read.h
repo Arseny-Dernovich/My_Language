@@ -1,5 +1,5 @@
 #include "My_features.h"
-
+// #include "Stack\Stack.h"
 #define MAX_LABELS 100
 #define MAX_TOKENS 5000
 #define MAX_IDENTIFIER_LENGTH 20
@@ -20,8 +20,14 @@ enum Operators { //НАВЗАНИЕ
     OP_ASSIST,             // *
     OP_SUBSTITUTE,         // /
     OP_SCORE,              // =
+    OP_LEADER,             // >
+    OP_UNDERDOG,           // <
+    OP_ADVANTAGE,          // >= (преимущество)
+    OP_PRESSING,           // <=
+    OP_DRAW,               // == (ничья)
+    OP_GAP,                // != (разрыв)
     OP_WHISTLE,            // ;
-    OP_OFFSIDE,
+    OP_OFFSIDE,            // ,
     OP_LSTADIUM,           // (
     OP_RSTADIUM,           // )
     OP_L_FIGURE_STADIUM ,  // {
@@ -29,11 +35,12 @@ enum Operators { //НАВЗАНИЕ
     KW_PASS ,              // if
     KW_DRIBBLE,            // while
     KW_SHOOT,              // else
-    KW_START_FUNC,         // начало функции
-    KW_END_FUNC,           //конец функции
+    KW_PRINT,               // PRINT
+    KW_START_BODY,         // начало функции
+    KW_END_BODY,           //конец функции
     KW_CALL_FUNC,          //вызов функции
     KW_RETURN,             //return
-    OP_NAN,
+    KW_INIT_FUNC,          //FUNC
 };
 
 struct Main_Operators_Words {
@@ -57,8 +64,14 @@ const  Main_Operators_Words words_operators[] = {
     {"assist",        "*",     OP_ASSIST ,           OPER},
     {"substitute",    "/",     OP_SUBSTITUTE ,       OPER},
     {"score",         "=",     OP_SCORE ,            OPER},
+    {"leader",        ">",     OP_LEADER ,           OPER},
+    {"underdog",      "<",     OP_UNDERDOG ,         OPER},
+    {"advantage",     ">=",    OP_ADVANTAGE ,        OPER},
+    {"pressing",      "<=",    OP_PRESSING,          OPER},
+    {"draw",          "==",    OP_DRAW ,             OPER},
+    {"gap",           "!=",    OP_GAP ,              OPER},
     {"whistle",       ";",     OP_WHISTLE ,          OPER},
-    {"offside",       ",",     OP_OFFSIDE ,          OPER},
+    {"offside",       "param", OP_OFFSIDE ,          OPER},
     {"stadium_open",  "(",     OP_LSTADIUM ,         OPER},
     {"stadium_close", ")",     OP_RSTADIUM ,         OPER},
     {"start_game",    "{",     OP_L_FIGURE_STADIUM , OPER},
@@ -66,12 +79,14 @@ const  Main_Operators_Words words_operators[] = {
     {"pass",          "if",    KW_PASS ,             KEY_WORDS},
     {"dribble",       "while", KW_DRIBBLE ,          KEY_WORDS},
     {"shoot",         "else",  KW_SHOOT ,            KEY_WORDS},
-    {"/:first_half",  "start", KW_START_FUNC ,       KEY_WORDS},
-    {"/:second_half", "end",   KW_END_FUNC ,         KEY_WORDS},
-    {"transfer",      "call",  KW_CALL_FUNC,         KEY_WORDS},
+    {"VAR",           "PRINT", KW_PRINT ,            KEY_WORDS},
+    {"/:first_half",  "start", KW_START_BODY ,       KEY_WORDS},
+    {"/:second_half", "end",   KW_END_BODY ,         KEY_WORDS},
+    {"transfer",      "CALL",  KW_CALL_FUNC,         KEY_WORDS},
     {"SSUUII",        "return",KW_RETURN ,           KEY_WORDS},
-};
+    {"FUNC",          "FUNC",  KW_INIT_FUNC,         KEY_WORDS},
 
+};
 const int size_main_op = sizeof(words_operators) / sizeof (words_operators[0]);
 
 // enum Key_Words {
@@ -83,7 +98,6 @@ const int size_main_op = sizeof(words_operators) / sizeof (words_operators[0]);
 struct Token {
     enum Token_Type token_type;
     int value;
-    const char* name;
     Token* left;
     Token* right;
 };
@@ -132,12 +146,21 @@ void Print_Token_Array (Token_Aftomat token_aftomat, Label_Id label_id);
 
 
 
-void export_tree_to_dot (const char* filename, Token* root);
-void print_tree (Token* node, int depth);
-Token* parse_expression (Token* tokens, int count, int* index);
-Token* parse_term (Token* tokens, int count, int* index);
-Token* parse_primary (Token* tokens, int count, int* index);
-int match_operator (Token* tokens, int count, int* index, enum Operators op);
-int is_end_of_tokens (Token* tokens, int count, int index);
-Token* create_token (enum Token_Type type, int value, const char* name);
+void Export_Tree_To_Dot (const char* filename, Label_Id* label_id ,  Token* root);
+void Print_Tree (Token* node, int depth , Label_Id* label_id);
+Token* Parse_Expression (Token* tokens, int count, int* index);
+Token* Parse_Term (Token* tokens, int count, int* index);
+Token* Parse_Primary (Token* tokens, int count, int* index);
+Token* Parse_Condition (Token* tokens, int count, int* index);
 Token* Parse_Assign (Token* tokens , int count , int* index);
+Token* Parse_Init (Token* tokens, int count, int* index);
+Token* Parse_Body (Token* tokens, int count, int* index);
+Token* Parse_ConditionOp (Token* tokens, int count, int* index);
+Token* Parse_CallFunc (Token* tokens, int count, int* index);
+Token* Parse_Ret_Func (Token* tokens , int count , int* index);
+Token* Parse_Function (Token* tokens, int count, int* index , Label_Id* label_id);
+Token* Parse_Body_Function (Token* tokens, int count, int* index);
+
+int Match_Operator (Token* tokens, int count, int* index, enum Operators op);
+int Is_End_Of_Tokens (Token* tokens, int count, int index);
+Token*Create_Token (enum Token_Type type, int value);

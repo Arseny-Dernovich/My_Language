@@ -1,3 +1,5 @@
-Messi  score  4 goal 4 assist stadium_open 5 foul 2 stadium_close
-
-
+/:first_half
+    GOAT Messi score Ronaldo foul 6 whistle
+    VAR Messi whistle
+    transfer $Messi$ stadium_open offside 33 offside Ronaldo goal Messi offside 6 stadium_close
+/:second_half GOAT $Barselona$ stadium_open GOAT x  GOAT y  GOAT z stadium_close
