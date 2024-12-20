@@ -1,0 +1,18 @@
+start_game
+
+    GOAT hui score 5 whistle
+    GOAT y score 8 whistle
+    start_game
+
+        hui score y whistle
+
+    end_game pass stadium_open hui leader 5 stadium_close
+
+    GOAT a score y goal hui whistle
+
+end_game
+
+
+     dribble stadium_open a goal 5 leader b foul 9  stadium_close
+
+

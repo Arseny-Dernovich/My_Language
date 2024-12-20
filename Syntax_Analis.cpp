@@ -1,24 +1,46 @@
 #include "Read.h"
 
+
+
 #define type(index)    tokens[index].token_type
 #define value(index)   tokens[index].value
 
-Token*Parse_Expression (Token* tokens , int count , int* index);
+void Add_Local_Identifier (Token* Tokens , int index , Label_Id* label_first_label_id , Label_Id* local_label_id)
+{
 
-Token* Create_Token (enum Token_Type type , int value) {
+}
+
+void Build_func_Table_Name (Token* tokens , Token* block , int index , Label_Id* label_id)
+{
+    if (type(index) != TOKEN_KEY_WORD && value(index) != OP_GOAT) {
+
+        fprintf (stderr , "При созданни таблицы имён для функции в начале ожилася узел с инициализацией\n");
+        assert(0);
+    }
+
+
+
+
+}
+
+Token* Create_Token (enum Token_Type type , int value)
+{
     Token* token =  (Token*)malloc (sizeof (Token));
     token->token_type = type;
     token->value = value;
+    token->local_label_id = {};
     token->left = NULL;
     token->right = NULL;
     return token;
 }
 
-int Is_End_Of_Tokens (Token* tokens , int count , int index) {
+int Is_End_Of_Tokens (Token* tokens , int count , int index)
+{
     return index >= count;
 }
 
-int Match_Operator (Token* tokens , int count , int* index , enum Operators op) {
+int Match_Operator (Token* tokens , int count , int* index , enum Operators op)
+{
     if (!Is_End_Of_Tokens (tokens , count , *index) &&
         type(*index) == TOKEN_OPERATOR &&
         strcmp (words_operators[value(*index)].name , words_operators[op].name) == 0) {
@@ -38,8 +60,8 @@ Token* Parse_Primary (Token* tokens , int count , int* index)
 
     Token* node = NULL;
 
-
-    if (Match_Operator (tokens , count , index , OP_LSTADIUM)) {
+    // printf ("HUUUIII value = %d" , value(*index));
+    if (type(*index) == TOKEN_OPERATOR && value(*index) == OP_LSTADIUM) {
 
         node = Parse_Expression (tokens , count , index);
         if (!Match_Operator (tokens , count , index , OP_RSTADIUM)) {
@@ -53,6 +75,13 @@ Token* Parse_Primary (Token* tokens , int count , int* index)
     if (type(*index) == TOKEN_NUMBER) {
         return &tokens[(*index)++];
     }
+
+    if (type(*index) == TOKEN_KEY_WORD && value(*index) == KW_CALL_FUNC) {
+
+        Token* call_func_node = Parse_CallFunc (tokens , count , index);
+        return call_func_node;
+    }
+
 
     if (type(*index) == TOKEN_IDENTIFIER) {
         return &tokens[(*index)++];
@@ -73,9 +102,11 @@ Token* Parse_Term (Token* tokens , int count , int* index)
         enum Operators op;
         if (type(*index) == TOKEN_OPERATOR && value(*index) == OP_ASSIST) {
             op = OP_ASSIST;
+            (*index)++;
 
         } else if (type(*index) == TOKEN_OPERATOR && value(*index) == OP_SUBSTITUTE) {
             op = OP_SUBSTITUTE;
+            (*index)++;
 
         } else {
             break;
@@ -276,7 +307,7 @@ Token* Parse_Init (Token* tokens , int count , int* index)
     return init_node;
 }
 
-Token* parse_op (Token* tokens , int count , int* index)
+Token* Parse_Op (Token* tokens , int count , int* index)
 {
     Token* op_node = NULL;
 
@@ -332,7 +363,7 @@ Token* parse_op (Token* tokens , int count , int* index)
     return whistle_node;
 }
 
-Token* parse_multiple_op (Token* tokens , int count , int* index)
+Token* Parse_Multiple_Op (Token* tokens , int count , int* index)
 {
     Token* root = NULL;
     Token* current = NULL;
@@ -347,8 +378,13 @@ Token* parse_multiple_op (Token* tokens , int count , int* index)
         if (type(*index) == TOKEN_OPERATOR && value(*index) == OP_R_FIGURE_STADIUM) {
             break;  // Завершаем парсинг операций
         }
+
+        if (type(*index) == TOKEN_KEY_WORD && value(*index) == KW_START_BODY) {
+            return root;
+        }
+
         // Парсим операцию Op
-        Token* op_node = parse_op (tokens , count , index);
+        Token* op_node = Parse_Op (tokens , count , index);
         if (!op_node) {
             break;
         }
@@ -380,7 +416,7 @@ Token* Parse_Body (Token* tokens , int count , int* index)
     (*index)++;
 
     // Парсим цепочку операций MultipleOp
-    Token* multiple_op = parse_multiple_op (tokens , count , index);
+    Token* multiple_op = Parse_Multiple_Op (tokens , count , index);
 
 
     if (type(*index) != TOKEN_OPERATOR || value(*index) != OP_R_FIGURE_STADIUM) {
@@ -544,7 +580,7 @@ Token* Parse_Body_Function  (Token* tokens , int count , int* index)
     }
     (*index)++;
 
-    Token* body_func = parse_multiple_op  (tokens , count , index);
+    Token* body_func = Parse_Multiple_Op  (tokens , count , index);
 
 
     if (type(*index) != TOKEN_KEY_WORD || value(*index) != KW_END_BODY) {
@@ -558,15 +594,17 @@ Token* Parse_Body_Function  (Token* tokens , int count , int* index)
     return body_func;
 }
 
-Token* Parse_Function  (Token* tokens , int count , int* index , Label_Id* label_id)
+Token* Parse_Function  (Token* tokens , int count , int* index)
 {
     Token* body_func = Parse_Body_Function (tokens , count , index);
     if (!body_func) {
         fprintf (stderr , "Error: Ожидалось тело функции\n");
         assert (0);
     }
-    // printf ("\n&&&&&&&&&&&&&&&&&Token %d: type = %d , value = %d\n count= %d" , *index , type(*index) , value(*index) , count);
 
+    Token* new_block_function  = Create_Token (TOKEN_NEW_BLOCK , NEW_BLOCK);
+    printf ("\n&&&&&&&&&&&&&&&&&Token %d: type = %d , value = %d\n count= %d" , *index , type(*index) , value(*index) , count);
+    new_block_function->right = body_func;
     // Убедимся , что следующий токен — это 'GOAT'
     if (type(*index) != TOKEN_KEY_WORD || value(*index) != OP_GOAT) {
         fprintf (stderr , "Error: Ожидалось ключевое слово 'GOAT' , но получили токен типа %d с значением %d\n" ,
@@ -636,10 +674,66 @@ Token* Parse_Function  (Token* tokens , int count , int* index , Label_Id* label
 
     func_node->right  = args_head;
 
-    goat_token->right = body_func;
+    goat_token->right = new_block_function;
     goat_token->left  = func_node;
     // printf  ("\n\n@@HUUUUIIIIIII\n\n");
 
     return goat_token;
+}
+
+Token* Parse_Programm(Token* tokens, int count, int* index)
+{
+    // Создаем корень программы
+    Token* root_programm = Create_Token(TOKEN_KEY_WORD, FORSA_BARSA);
+
+
+    // Узел для списка функций
+    Token* functions_root = NULL;
+    Token* last_function_node = NULL;
+
+    // Узел для списка глобальных переменных
+    Token* global_vars_root = NULL;
+    Token* last_global_var_node = NULL;
+
+    while (*index < count) {
+
+        if (type(*index) == TOKEN_KEY_WORD && value(*index) == KW_START_BODY) {
+            printf ("\n$$$\n");
+            // Парсинг функции
+            Token* function_node = Parse_Function (tokens, count, index);
+            if (!function_node) {
+
+                fprintf(stderr, "Error: Ожидалась функция, но парсинг не удался.\n");
+                assert(0);
+            }
+
+            // Добавление функции в цепочку
+            Token* function_list_node = Create_Token(TOKEN_KEY_WORD, KW_INIT_FUNC);
+            function_list_node->left = function_node;
+            function_list_node->right = NULL;
+
+            if (!functions_root) {
+                functions_root = function_list_node;
+
+            } else {
+                last_function_node->right = function_list_node;
+            }
+
+            last_function_node = function_list_node;
+
+        } else if (type(*index) == TOKEN_KEY_WORD && value(*index) == OP_GOAT) {
+
+            Token* global_node = Parse_Multiple_Op (tokens , count , index);
+            global_vars_root = global_node;
+
+        }
+    }
+
+    // Связываем поддеревья с корнем программы
+    root_programm->left = functions_root;
+    root_programm->right = global_vars_root;
+    // Export_Tree_To_Dot ("tree.dot" , label_id ,  functions_root);
+
+    return root_programm;
 }
 

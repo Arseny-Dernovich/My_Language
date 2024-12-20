@@ -2,7 +2,10 @@
 
 void Print_Tree (Token* node , int depth , Label_Id* label_id)
 {
-    if (!node) return;
+    if (!node) {
+     fprintf (stderr , "\nGGGGG\n");
+     return;
+    }
     for (int i = 0; i < depth; i++) printf ("  ");
 
     if (node->token_type == TOKEN_NUMBER) {
@@ -33,7 +36,10 @@ void Print_Tree (Token* node , int depth , Label_Id* label_id)
 
 void Write_Tree_To_Dot (FILE* file , Token* node , Label_Id* label_id , int* node_id)
 {
-    if (!node) return;
+    if (!node) {
+        // fprintf (stderr , "\nGGGGG\n");
+        return;
+    }
 
     int current_id = (*node_id)++;
     // printf ("\n\n@@HUUUUIIIIIII node_value = %d\n\n" , node->token_type);
@@ -54,12 +60,27 @@ void Write_Tree_To_Dot (FILE* file , Token* node , Label_Id* label_id , int* nod
     } else if (node->token_type == TOKEN_OPERATOR) {
 
         fprintf (file , "%s" , words_operators[node->value].real_name);
+        fprintf (stderr , "%s" , words_operators[node->value].real_name);
         color = "aqua";
+
+    } else if (node->token_type == TOKEN_NEW_BLOCK) {
+
+        fprintf (file , "%s" , words_operators[node->value].real_name);
+        color = "pink";
 
     } else if (node->token_type == TOKEN_KEY_WORD) {
 
-        fprintf (file , "%s" , words_operators[node->value].real_name);
-        color = "hotpink";
+        if (node->value == FORSA_BARSA) {
+
+            fprintf (file , "%s" , words_operators[node->value].real_name);
+            color = "black";
+        }
+
+        else {
+
+            fprintf (file , "%s" , words_operators[node->value].real_name);
+            color = "hotpink";
+        }
 
     } else if (node->token_type == TOKEN_FUNCTION) {
 
@@ -72,8 +93,11 @@ void Write_Tree_To_Dot (FILE* file , Token* node , Label_Id* label_id , int* nod
         color = "gray";
     }
 
+    if (node->token_type == TOKEN_KEY_WORD && node->value == FORSA_BARSA)
+        fprintf (file , "\" , style=filled ,fontcolor=white , fillcolor=%s];\n" , color);
 
-    fprintf (file , "\" , style=filled , fillcolor=%s];\n" , color);
+    else
+        fprintf (file , "\" , style=filled , fillcolor=%s];\n" , color);
 
     if (node->left) {
         int left_id = *node_id;
@@ -99,6 +123,8 @@ void Export_Tree_To_Dot (const char* filename , Label_Id* label_id ,  Token* roo
     }
 
     fprintf (file , "digraph Tree {\n");
+    fprintf (file , "bgcolor = \"darkblue\"\n");
+    fprintf (file , "edge [color = \"white\"]\n");
     fprintf (file , "  node [shape=ellipse];\n");
 
     int node_id = 0;
@@ -112,5 +138,5 @@ void Export_Tree_To_Dot (const char* filename , Label_Id* label_id ,  Token* roo
     snprintf (command , sizeof (command) , "dot -Tpng %s -o tree.png" , filename);
     system (command);
 
-    printf ("Tree exported to tree.png.\n");
+    printf ("Tree#   exported to tree.png.\n");
 }

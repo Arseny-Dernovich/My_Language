@@ -1,46 +1,5 @@
-// #include "Landuage.h"
 #include "Read.h"
 
-
-
-int main ()
-{
-    const char* filename = "my_programm.txt";
-
-    // Читаем входной файл
-    char* input = Read_File_To_Buffer (filename);
-    if (!input) {
-
-        printf ("Failed to read file: %s\n" , filename);
-        return EXIT_FAILURE;
-    }
-    printf ("%s\n" , input);
-
-    Label_Id label_id = {};
-
-    Build_Name_Table (input , &label_id);
-
-    Print_Name_Table (&label_id);
-
-    Token_Aftomat token_aftomat = {};
-    Lexical_Analyzer (input , &token_aftomat , &label_id);
-
-    Print_Token_Array (token_aftomat , label_id);
-
-
-    int index = 0;
-    Token* tree = Parse_Function (token_aftomat.aftomat_tokens , token_aftomat.token_size , &index , &label_id);
-    Export_Tree_To_Dot ("tree.dot" , &label_id ,  tree);
-
-
-    free (input);
-    for (int i = 0; i < label_id.table_size; i++) {
-
-        free (label_id.table_label[i].name_identifier);
-    }
-
-    return 0;
-}
 
 int Find_In_Table_Func (Label_Id* label_id , const char* name , Namel_Label type)
 {
@@ -177,7 +136,6 @@ void Remove_Dollar_Sign (char* str)
     char* p = str;
     while (*p) {
         if (*p == '$') {
-            // Сдвигаем остальные символы на одну позицию влево
             memmove (p , p + 1 , strlen (p));
         } else {
             p++;
@@ -189,6 +147,7 @@ void Remove_Dollar_Sign (char* str)
 
 void Lexical_Analyzer (const char* expr , Token_Aftomat* token_aftomat , Label_Id* label_id)
 {
+    // fprintf (stderr , "\nHUUUIII\n");
     int pos = 0;  // Текущая позиция в строке
     int index = 0; // Индекс в массиве токенов
 
@@ -410,4 +369,3 @@ void Print_Token_Array (Token_Aftomat token_aftomat , Label_Id label_id)
         }
     }
 }
-

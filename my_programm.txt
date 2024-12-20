@@ -1,5 +1,19 @@
+GOAT Ronaldo score 55 foul 7 assist 99 whistle
+GOAT Ronaldo score 55 foul 7 whistle
 /:first_half
     GOAT Messi score Ronaldo foul 6 whistle
     VAR Messi whistle
+    transfer $Messi$ stadium_open offside 33 offside Ronaldo goal Messi offside 6 stadium_close
+/:second_half GOAT $Barselona$ stadium_open GOAT x  GOAT y  GOAT z stadium_close
+
+/:first_half
+    GOAT Messi score Ronaldo foul 6 whistle
+    VAR Messi whistle
+    start_game
+        GOAT VINALDUM score 0 assist Messi whistle
+        start_game
+            GOAT VINALDUM score 7 foul Messi whistle
+        end_game pass stadium_open Boateng leader Ronaldo stadium_close
+    end_game pass stadium_open Messi leader Ronaldo stadium_close
     transfer $Messi$ stadium_open offside 33 offside Ronaldo goal Messi offside 6 stadium_close
 /:second_half GOAT $Barselona$ stadium_open GOAT x  GOAT y  GOAT z stadium_close
