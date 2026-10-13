@@ -1,0 +1,5 @@
+*.o
+read.exe
+/build/
+tree.dot
+tree.png

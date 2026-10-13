@@ -1,0 +1,33 @@
+/:first_half
+    start_game
+        SSUUII n whistle
+    end_game pass stadium_open n pressing 1 stadium_close
+
+    SSUUII transfer $fibonacci$ stadium_open offside n foul 1 stadium_close goal transfer $fibonacci$ stadium_open offside n foul 2 stadium_close whistle
+/:second_half GOAT $fibonacci$ stadium_open GOAT n stadium_close
+
+/:first_half
+    start_game
+        SSUUII 1 whistle
+    end_game pass stadium_open exponent pressing 0 stadium_close
+
+    SSUUII base assist transfer $power$ stadium_open offside base offside exponent foul 1 stadium_close whistle
+/:second_half GOAT $power$ stadium_open GOAT base GOAT exponent stadium_close
+
+/:first_half
+    GOAT i score 1 whistle
+    GOAT total score 0 whistle
+
+    start_game
+        total score total goal i whistle
+        i score i goal 1 whistle
+    end_game dribble stadium_open i pressing n stadium_close
+
+    SSUUII total whistle
+/:second_half GOAT $sum_until$ stadium_open GOAT n stadium_close
+
+/:first_half
+    VAR transfer $fibonacci$ stadium_open offside 8 stadium_close whistle
+    VAR transfer $power$ stadium_open offside 2 offside 10 stadium_close whistle
+    VAR transfer $sum_until$ stadium_open offside 10 stadium_close whistle
+/:second_half GOAT $main$ stadium_open stadium_close

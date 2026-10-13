@@ -1,0 +1,11 @@
+/:first_half
+    start_game
+        SSUUII 1 whistle
+    end_game pass stadium_open n pressing 1 stadium_close
+
+    SSUUII n assist transfer $factorial$ stadium_open offside n foul 1 stadium_close whistle
+/:second_half GOAT $factorial$ stadium_open GOAT n stadium_close
+
+/:first_half
+    VAR transfer $factorial$ stadium_open offside 5 stadium_close whistle
+/:second_half GOAT $main$ stadium_open stadium_close

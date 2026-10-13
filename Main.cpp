@@ -1,70 +1,75 @@
 #include "Read.h"
 #include "Back_end.h"
 
-void Free_Tree (Token* node)
+static int Compile_Program (const char * filename);
+
+
+
+
+int main (int argc , char ** argv)
 {
-    if (node == NULL) return;
-    Free_Tree (node->left);
-    Free_Tree (node->right);
-    free (node);
+    const char * filename = argc > 1 ? argv[1] : "my_programm.txt";
+
+    return Compile_Program (filename);
 }
 
 
-int main (int argc , char** argv)
-{
-    const char* filename = "my_programm.txt";
-    if (argc == 2)
-        filename = argv[1];
-    // Читаем входной файл
-    char* input = Read_File_To_Buffer (filename);
-    if (!input) {
 
-        printf ("Failed to read file: %s\n" , filename);
+
+static void Free_Name_Table (Label_Id * label_id)
+{
+    for (int i = 0; i < label_id->table_size; i++) {
+
+        free (label_id->table_label[i].name_identifier);
+    }
+}
+
+
+static int Compile_Program (const char * filename)
+{
+    char * input = Read_File_To_Buffer (filename);
+
+    if (input == NULL) {
+
+        fprintf (stderr , "Failed to read file: %s\n" , filename);
+
         return EXIT_FAILURE;
     }
-    printf ("%s\n" , input);
 
     Label_Id label_id = {};
-// fprintf(stderr, "porno\n");
-// fprintf(stderr, "label size in main = %d\n\n", label_id.table_size);
     Build_Name_Table (input , &label_id);
-
-    Print_Name_Table (&label_id);
 
     Token_Aftomat token_aftomat = {};
     Lexical_Analyzer (input , &token_aftomat , &label_id);
 
-    Print_Token_Array (token_aftomat , label_id);
-
-
     int index = 0;
-    Token* tree = Parse_Programm (token_aftomat.aftomat_tokens , token_aftomat.token_size , &index);
-    ProcessTree (tree , &label_id);
+    Token * tree = Parse_Programm (token_aftomat.aftomat_tokens , token_aftomat.token_size , &index);
+
+    Program_Context context = {};
+    ProcessTree (tree , &context , &label_id);
     Fold_Constants (tree);
     Remove_Neutral_Elements (tree);
-    PrintLocalNameTables (tree);
-    Export_Tree_To_Dot ("tree.dot" , &label_id ,  tree);
+    Export_Tree_To_Dot ("tree.dot" , &label_id , tree);
 
-    // Print_Token_Array (token_aftomat , label_id);
+    FILE * asm_file = fopen ("output.asm" , "w");
+    int result = EXIT_SUCCESS;
 
+    if (asm_file == NULL) {
 
-    FILE* file = fopen("output.asm", "w");
-    if (file == NULL) {
-    perror("Error opening file");
-    exit(1);
-}
-//
-    Generate_Asm_Function (tree->left , file , &label_id);
+        perror ("Error opening output.asm");
+        result = EXIT_FAILURE;
 
-    fclose (file);
-
-//     Free_Tree(tree);         // TODO:
-    free (input);
-    for (int i = 0; i < label_id.table_size; i++) {
-
-        free (label_id.table_label[i].name_identifier);
     }
-    printf ("Программа завершенна");
 
-    return 0;
+    else {
+        Generate_Asm_Program (tree , asm_file , &context);
+        fclose (asm_file);
+        printf ("Программа завершена\n");
+    }
+
+    Free_Scopes (tree);
+    Free_Name_Table (&label_id);
+    free (input);
+
+    return result;
 }

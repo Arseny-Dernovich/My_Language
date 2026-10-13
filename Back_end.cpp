@@ -1,383 +1,284 @@
 #include "Read.h"
 #include "Back_end.h"
 
-int n_if = 1;
-int n_while = 1;
+static int next_label = 1;
 
-void Generate_Asm_Assign (Token* node, FILE* asm_file , Label_Id* label_id)
+static const Function_Info * Find_Function_Info (int name_id , const Program_Context * context)
 {
-    if (!node) return;
 
-    assert(node->token_type == TOKEN_OPERATOR && node->value == OP_SCORE);
+    for (int i = 0; i < context->function_count; i++) {
 
-    // Обрабатываем выражение справа
-    Generate_Asm_Expression(node->right, asm_file , label_id);
+        if (context->functions[i].name_id == name_id) {
 
+            return &context->functions[i];
 
-    // Слева должна быть переменная
-    if (node->left->token_type == TOKEN_IDENTIFIER) {
-        fprintf(asm_file, "pop [%d]  ; id =%s\n", node->left->value , label_id->table_label[node->left->value].name_identifier); // Присваиваем значение переменной
-    } else {
-        fprintf(stderr, "ERROR: Left side of assignment must be an identifier\n");
-        assert(0);
+        }
     }
+    fprintf (stderr , "Backend error: function %d not found\n" , name_id);
+    exit (EXIT_FAILURE);
 }
 
 
-void Generate_Asm_Expression(Token* node, FILE* asm_file , Label_Id* label_id)
+static const char * Function_Name (const Function_Info * function , const Program_Context * context)
 {
-    if (!node) return;
 
-    // Постфиксный обход дерева
-    Generate_Asm_Expression(node->left, asm_file , label_id);
-    Generate_Asm_Expression(node->right, asm_file , label_id);
+    return context->names->table_label[function->name_id].name_identifier;
+}
 
-    // Обрабатываем текущий узел
-    if (node->token_type == TOKEN_IDENTIFIER) {
-        // Узел - переменная
-        fprintf(asm_file, "push [%d] ; id =%s\n", node->value , label_id->table_label[node->value].name_identifier); // Значение переменной - это индекс в таблице имен
-    }
-    else if (node->token_type == TOKEN_NUMBER) {
-        // Узел - число
-        fprintf(asm_file, "push %d\n", node->value);
-    }
-    else if (node->token_type == TOKEN_OPERATOR) {
-        // Узел - оператор
-        switch (node->value) {
-            case OP_GOAL: // "+"
-                fprintf(asm_file, "add\n");
-                break;
+static void Generate_Asm_Expression (Token * node , FILE * asm_file ,
+                                     const Program_Context * context , const Function_Info * current);
 
-            case OP_FOUL: // "-"
-                fprintf(asm_file, "sub\n");
-                break;
+static void Generate_Asm_Call_Func (Token * node , FILE * asm_file ,
+                                   const Program_Context * context , const Function_Info * current)
+{
+    const Function_Info * target = Find_Function_Info (node->left->value , context);
 
-            case OP_ASSIST: // "*"
-                fprintf(asm_file, "mul\n");
-                break;
+    fprintf (asm_file , "; Вызов функции %s\n" , Function_Name (target , context));
 
-            case OP_SUBSTITUTE: // "/"
-                fprintf(asm_file, "div\n");
-                break;
+    if (current != NULL) {
 
-            default:
-                fprintf(stderr, "ERROR: Unknown operator: %d\n", node->value);
-                assert(0);
+        fprintf (asm_file , "; Сохранение кадра вызывающей функции\n");
+
+        for (int i = 0; i < current->frame_size; i++) {
+            int slot = current->frame_start + i;
+            fprintf (asm_file , "push [%d] ; frame slot\n" , slot);
         }
     }
 
-    else if (node->token_type == TOKEN_KEY_WORD) {
+    for (Token * argument = node->right; argument != NULL; argument = argument->right)
+        Generate_Asm_Expression (argument->left , asm_file , context , current);
 
-        Generate_Asm_Call_Func (node , asm_file , label_id);
+    fprintf (asm_file , "call func_%s\n" , Function_Name (target , context));
+
+    if (current != NULL) {
+
+        fprintf (asm_file , "; Восстановление кадра вызывающей функции\n");
+
+        for (int i = current->frame_size - 1; i >= 0; i--) {
+            int slot = current->frame_start + i;
+            fprintf (asm_file , "pop [%d] ; frame slot\n" , slot);
+        }
     }
+
+    fprintf (asm_file , "; Результат вызова из ax помещается на стек выражений\n");
+    fprintf (asm_file , "push ax\n");
 }
 
-
-void Generate_Asm_Initialization(Token* node, FILE* asm_file, Label_Id* label_id)
+static void Generate_Asm_Expression (Token * node , FILE * asm_file ,
+                                     const Program_Context * context , const Function_Info * current)
 {
-    assert(node);
-    my_assert(node->value != OP_GOAT); // Узел типа данных (например, "int")
 
-    // Правый потомок - значение инициализации
-    Token* value_node = node->right;
-    Generate_Asm_Expression(value_node, asm_file , label_id);
-
-    // Левый потомок - имя переменной
-    Token* identifier_node = node->left;
-    assert(identifier_node->token_type == TOKEN_IDENTIFIER);
-
-    // Записываем значение в переменную
-    fprintf(asm_file, "pop [%d] ; Initialize variable %s\n", identifier_node->value, label_id->table_label[identifier_node->value].name_identifier);
-}
-
-
-void Generate_Asm_Operations(Token* node, FILE* asm_file , Label_Id* label_id)
-{
-    assert(node);
-
-//      if (node->value == OP_WHISTLE) {
-//
-//         return;
-//     }
-
-    switch (node->value) {
-
-        case OP_GOAT:
-                        Generate_Asm_Initialization (node, asm_file , label_id);
-                        break;
-
-        case OP_SCORE:
-                        Generate_Asm_Assign (node, asm_file , label_id);
-                        break;
-
-        case KW_PASS:
-                        Generate_Asm_If_Statement (node , asm_file , label_id);
-                        break;
-
-        case KW_DRIBBLE:
-                        Generate_Asm_While_Statement (node , asm_file , label_id);
-                        break;
-
-        case KW_CALL_FUNC:
-                        Generate_Asm_Call_Func (node , asm_file , label_id);
-                        break;
-
-        case KW_PRINT:
-                        Generate_Asm_Print (node , asm_file , label_id);
-                        break;
-
-        case KW_RETURN:
-                        Generate_Asm_Return_Value (node , asm_file , label_id);
-                        break;
-
-
-        default:
-                        fprintf(stderr, "Unknown token type: %d\n", node->value);
-                        assert (0);
-    }
-}
-
-
-void Generate_Asm_Multiple_Op(Token* node, FILE* asm_file , Label_Id* label_id)
-{
     if (node == NULL) {
-        fprintf (asm_file , "; Я в конце  Multiple_Op\n");
+
         return;
     }
-    fprintf (asm_file , "; Я в Multiple_Op\n");
-    fprintf(stderr, "\nstart multiple: %s\n", words_operators[node->value].name);
 
-    if (node->value == OP_WHISTLE) { // Узел ";"
+    if (node->token_type == TOKEN_IDENTIFIER) {
 
-        printf ("Зашёл");
-        Generate_Asm_Multiple_Op(node->left, asm_file , label_id);
+        assert (node->slot >= 0);
+        fprintf (asm_file , "push [%d] ; id =%s\n" , node->slot ,
+                 context->names->table_label[node->value].name_identifier);
 
-        // Обрабатываем правую часть (следующее выражение)
-        Generate_Asm_Multiple_Op(node->right, asm_file , label_id);
-
-    } else {
-        printf ("зашёл операция : %s\n", words_operators[node->value].name);
-        // Если это не ";", обрабатываем как одно выражение
-        Generate_Asm_Operations(node, asm_file , label_id);
+        return;
     }
-}
 
+    if (node->token_type == TOKEN_NUMBER) {
 
-void Generate_Asm_Condition (Token* node, FILE* asm_file , Label_Id* label_id , const char* if_or_while)
-{
-    fprintf (asm_file , "\n; Я в начале условия\n");
-    assert (node);
-    my_assert (node->token_type != TOKEN_OPERATOR ||
-         (node->value < OP_LEADER || node->value > OP_GAP));
+        fprintf (asm_file , "push %d\n" , node->value);
 
-    int counter = 0;
-    if (strcmp(if_or_while , "if") == 0)
-        counter = n_if;
+        return;
+    }
 
-    else if (strcmp(if_or_while , "while") == 0)
-        counter = n_while;
+    if (node->token_type == TOKEN_KEY_WORD && node->value == KW_CALL_FUNC) {
 
-    Generate_Asm_Expression (node->left , asm_file , label_id);
-    Generate_Asm_Expression (node->right , asm_file , label_id);
+        Generate_Asm_Call_Func (node , asm_file , context , current);
+
+        return;
+    }
+
+    assert (node->token_type == TOKEN_OPERATOR);
+    Generate_Asm_Expression (node->left , asm_file , context , current);
+    Generate_Asm_Expression (node->right , asm_file , context , current);
 
     switch (node->value) {
 
-        case OP_LEADER:
-                        fprintf (asm_file , "ja %s_end_%d" , if_or_while , n_if);
-                        counter++;
-                        break;
+        case OP_GOAL:       fprintf (asm_file , "add\n"); break;
 
-        case OP_UNDERDOG:
-                        fprintf (asm_file , "jb %s_end_%d" , if_or_while , counter);
-                        counter++;
-                        break;
+        case OP_FOUL:       fprintf (asm_file , "sub\n"); break;
 
-        case OP_ADVANTAGE:
-                        fprintf (asm_file , "jae %s_end_%d" , if_or_while , counter);
-                        counter++;
-                        break;
+        case OP_ASSIST:     fprintf (asm_file , "mul\n"); break;
 
-        case OP_PRESSING:
-                        fprintf (asm_file , "jbe %s_end_%d" , if_or_while , counter);
-                        counter++;
-                        break;
+        case OP_SUBSTITUTE: fprintf (asm_file , "div\n"); break;
 
-        case OP_DRAW:
-                        fprintf (asm_file , "je %s_end_%d" , if_or_while , counter);
-                        counter++;
-                        break;
+        default:
 
-        case OP_GAP:
-                        fprintf (asm_file , "jne %s_end_%d" , if_or_while , counter);
-                        counter++;
-                        break;
+            fprintf (stderr , "Backend error: unknown arithmetic operator %d\n" , node->value);
+            exit (EXIT_FAILURE);
     }
-
-    fprintf (asm_file , "\n; Я в конце условия\n");
-
 }
 
-
-void Generate_Asm_If_While_Body(Token* node, FILE* asm_file, Label_Id* label_id, const char* if_or_while)
+static void Generate_Asm_Condition (Token * node , FILE * asm_file ,
+                                    const Program_Context * context , const Function_Info * current ,
+                                    const char * end_label , int label_id)
 {
-    assert(node);
-    assert(asm_file);
-    assert(label_id);
+    fprintf (asm_file , "; Я в начале условия\n");
+    Generate_Asm_Expression (node->left , asm_file , context , current);
+    Generate_Asm_Expression (node->right , asm_file , context , current);
 
-    fprintf(asm_file, "\n; Я в начале тела \n");
+    const char * jump = NULL;
 
-    // // Генерируем уникальную метку для конца блока if/while
-    // int end_label = label_id->n_if;
-    // label_id->n_if++;
+    switch (node->value) {
 
-    Generate_Asm_Multiple_Op(node, asm_file, label_id);
+        case OP_LEADER:    jump = "jbe"; break;
 
-    if (strcmp(if_or_while, "while") == 0) {
-        fprintf(asm_file, "jmp %s_start_%d\n", if_or_while, n_while);
+        case OP_UNDERDOG:  jump = "jae"; break;
+
+        case OP_ADVANTAGE: jump = "jb";  break;
+
+        case OP_PRESSING:  jump = "ja";  break;
+
+        case OP_DRAW:      jump = "jne"; break;
+
+        case OP_GAP:       jump = "je";  break;
+
+        default:
+
+            fprintf (stderr , "Backend error: unknown comparison %d\n" , node->value);
+            exit (EXIT_FAILURE);
     }
-
-    // Метка конца блока
-    fprintf(asm_file, "%s_end_%d:\n", if_or_while, n_while);
-
-    fprintf(asm_file, "\n; Я в конце тела %s\n", if_or_while);
+    fprintf (asm_file , "%s %s_%d\n" , jump , end_label , label_id);
+    fprintf (asm_file , "; Я в конце условия\n");
 }
 
-
-void Generate_Asm_If_Statement(Token* node, FILE* asm_file, Label_Id* label_id)
+static void Generate_Asm_Statements (Token * node , FILE * asm_file ,
+                                     const Program_Context * context , const Function_Info * current)
 {
-    assert(node);
-    assert(asm_file);
-    assert(label_id);
+    if (node == NULL)
+        return;
 
-    fprintf(asm_file, "\n; Генерация кода для if\n");
+    fprintf (asm_file , "; Я в Multiple_Op\n");
 
-    // Генерация условия
-    Generate_Asm_Condition(node->left, asm_file, label_id, "if");
+    for (Token * statement = node; statement != NULL; statement = statement->right) {
 
-    // Генерация тела
-    Generate_Asm_If_While_Body(node->right, asm_file, label_id, "if");
+        Token * operation = statement->left;
+        assert (operation != NULL);
 
-    fprintf(asm_file, "\n; Конец кода для if\n");
-}
+        if (operation->value == OP_GOAT && operation->token_type == TOKEN_KEY_WORD) {
 
+            if (operation->right != NULL)
+                Generate_Asm_Expression (operation->right , asm_file , context , current);
 
-void Generate_Asm_While_Statement(Token* node, FILE* asm_file, Label_Id* label_id)
-{
-    assert(node);
-    assert(asm_file);
-    assert(label_id);
+            else
+                fprintf (asm_file , "push 0\n");
+            fprintf (asm_file , "pop [%d] ; id =%s\n" , operation->left->slot ,
+                     context->names->table_label[operation->left->value].name_identifier);
 
-    fprintf(asm_file, "\n; Генерация кода для while\n");
-
-    // Метка начала условия
-
-    fprintf(asm_file, "while_start_%d:\n", n_while);
-
-    // Генерация условия
-    Generate_Asm_Condition(node->left, asm_file, label_id, "while");
-
-    // Генерация тела
-    Generate_Asm_If_While_Body(node->right, asm_file, label_id, "while");
-
-    fprintf(asm_file, "\n; Конец кода для while\n");
-}
-
-
-void Generate_Asm_Param_Call_Func (Token* node , FILE* asm_file , Label_Id* label_id)
-{
-    assert (asm_file);
-    assert (label_id);
-
-    fprintf (asm_file , "\n; Генерация параметров при вызове функции\n");
-
-    Token* param = node;
-
-    while (param != NULL) {
-
-        Generate_Asm_Expression (param->left , asm_file , label_id);
-
-        param = param->right;
-    }
-
-    fprintf (asm_file , "\n; Конец генерация параметров при вызове функции\n");
-}
-
-
-void Generate_Asm_Call_Func (Token* node , FILE* asm_file , Label_Id* label_id)
-{
-    assert (node);
-    assert (asm_file);
-    assert (label_id);
-
-    fprintf (asm_file , "\n; Генерация кода для ВЫЗОВА ФУНКЦИИ\n");
-
-    Generate_Asm_Param_Call_Func (node->right , asm_file , label_id);
-
-    if (node->token_type == TOKEN_KEY_WORD && node->value == KW_CALL_FUNC) {
-        fprintf (asm_file , "call %s:\n" , label_id->table_label[node->left->value].name_identifier);
-    }
-
-
-    fprintf (asm_file , "\n; Конец генерации кода для ВЫЗОВА ФУНКЦИИ\n");
-}
-
-void Generate_Asm_Return_Value (Token* node, FILE* asm_file, Label_Id* label_id)
-{
-    assert(asm_file);
-    assert(label_id);
-
-    fprintf(asm_file, "\n\n; Генерация кода для возвращаемого значения функции\n\n");
-
-    // Генерация кода для выражения, возвращаемого функцией
-    if (node != NULL) {
-        Generate_Asm_Expression (node->left, asm_file, label_id);
-
-        fprintf(asm_file, "pop ax ; Перенос результата в регистр ax для возврата\n");
-    }
-    fprintf(asm_file, "\n\n; Конец генерации кода для возвращаемого значения функции\n\n");
-}
-
-
-void Generate_Asm_Body_Function (Token* node , FILE* asm_file , Label_Id* label_id)
-{
-    fprintf (asm_file , "\n; Я в теле функции\n");
-
-    Generate_Asm_Multiple_Op (node->right->right , asm_file , label_id);
-
-    fprintf (asm_file , "\n; Я в конце  тела функции\n");
-}
-
-void Generate_Asm_Function (Token* node , FILE* asm_file , Label_Id* label_id)
-{
-    assert (asm_file);
-    assert (label_id);
-    my_assert (node->token_type != TOKEN_KEY_WORD && node->value != KW_INIT_FUNC);
-
-    Token* init_func = node->left;
-    Token* new_block = init_func->right;
-    Label_Id* local_label = new_block->local_label_id;
-
-    Generate_Asm_Body_Function (init_func , asm_file , local_label);
-}
-
-
-void Generate_Asm_Print (Token* node , FILE* asm_file , Label_Id* label_id)
-{
-        const char* comment = "     ;PRINT";
-
-        if (node->left->token_type == TOKEN_IDENTIFIER)
-            fprintf (asm_file , "push [%d] %s\n" , node->left->value , comment);
-
-        else if (node->left->token_type == TOKEN_NUMBER)
-            fprintf (asm_file , "push %d %s\n" , node->left->value , comment);
-
-        else {
-
-            fprintf (stderr , "ОШИБКА , ожидалось имя переменной или число");
-            assert (0);
         }
 
-        fprintf (asm_file , "out\n");
+        else if (operation->value == OP_SCORE && operation->token_type == TOKEN_OPERATOR) {
+            Generate_Asm_Expression (operation->right , asm_file , context , current);
+            fprintf (asm_file , "pop [%d] ; id =%s\n" , operation->left->slot ,
+                     context->names->table_label[operation->left->value].name_identifier);
+
+        }
+
+        else if (operation->value == KW_PRINT) {
+            Generate_Asm_Expression (operation->left , asm_file , context , current);
+            fprintf (asm_file , "out\n");
+
+        }
+
+        else if (operation->value == KW_RETURN) {
+            fprintf (asm_file , "; Генерация кода для возвращаемого значения функции\n");
+            Generate_Asm_Expression (operation->left , asm_file , context , current);
+            fprintf (asm_file , "pop ax ; Перенос результата в регистр ax для возврата\nret\n");
+            fprintf (asm_file , "; Конец генерации кода для возвращаемого значения функции\n");
+
+        }
+
+        else if (operation->value == KW_CALL_FUNC) {
+            Generate_Asm_Call_Func (operation , asm_file , context , current);
+            fprintf (asm_file , "pop ax\n");
+
+        }
+
+        else if (operation->value == KW_PASS || operation->value == KW_DRIBBLE) {
+            int label_id = next_label++;
+            const char * label = operation->value == KW_PASS ? "if" : "while";
+
+            fprintf (asm_file , "; Генерация кода для %s\n" , label);
+
+            if (operation->value == KW_DRIBBLE)
+                fprintf (asm_file , "%s_start_%d:\n" , label , label_id);
+
+            Generate_Asm_Condition (operation->left , asm_file , context , current , label , label_id);
+            fprintf (asm_file , "; Я в начале тела %s\n" , label);
+            Generate_Asm_Statements (operation->right->right , asm_file , context , current);
+            fprintf (asm_file , "; Я в конце тела %s\n" , label);
+
+            if (operation->value == KW_DRIBBLE)
+                fprintf (asm_file , "jmp %s_start_%d\n" , label , label_id);
+
+            fprintf (asm_file , "%s_%d:\n" , label , label_id);
+            fprintf (asm_file , "; Конец кода для %s\n" , label);
+        }
+    }
+
+    fprintf (asm_file , "; Конец Multiple_Op\n");
 }
 
 
+void Generate_Asm_Program (Token * root , FILE * asm_file , const Program_Context * context)
+{
+    assert (root != NULL && asm_file != NULL && context != NULL);
+
+    if (context->function_count == 0) {
+
+        fprintf (stderr , "Backend error: no functions in program\n");
+        exit (EXIT_FAILURE);
+    }
+
+    fprintf (asm_file , "; Глобальные инструкции программы\n");
+    Generate_Asm_Statements (root->right , asm_file , context , NULL);
+
+    // main — точка входа; если её нет, используем первую функцию учебной программы.
+    const Function_Info * entry = &context->functions[0];
+
+    for (int i = 0; i < context->function_count; i++) {
+
+        if (strcmp (Function_Name (&context->functions[i] , context) , "main") == 0)
+            entry = &context->functions[i];
+    }
+
+    if (entry->parameter_count != 0) {
+
+        fprintf (stderr , "Backend error: entry function needs parameters\n");
+        exit (EXIT_FAILURE);
+    }
+    fprintf (asm_file , "; Точка входа программы\n");
+    fprintf (asm_file , "call func_%s\nhlt\n" , Function_Name (entry , context));
+
+    for (int i = 0; i < context->function_count; i++) {
+
+        const Function_Info * function = &context->functions[i];
+        fprintf (asm_file , "; Функция %s: начало кадра RAM %d, размер %d\n" ,
+                 Function_Name (function , context) , function->frame_start , function->frame_size);
+        fprintf (asm_file , "func_%s:\n" , Function_Name (function , context));
+        fprintf (asm_file , "; Я в теле функции %s\n" , Function_Name (function , context));
+
+        Token * param = function->node->left->right;
+        int slots[MAX_LABELS] = {};
+        int count = 0;
+
+        for (; param != NULL; param = param->right)
+            slots[count++] = param->left->slot;
+
+        fprintf (asm_file , "; Приём параметров функции\n");
+        for (int j = count - 1; j >= 0; j--)
+            fprintf (asm_file , "pop [%d] ; параметр кадра\n" , slots[j]);
+
+        Generate_Asm_Statements (function->node->right->right , asm_file , context , function);
+        fprintf (asm_file , "; Неявный возврат 0 из функции %s\npush 0\npop ax\nret\n" ,
+                 Function_Name (function , context));
+    }
+}

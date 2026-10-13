@@ -1,226 +1,238 @@
 #include "Read.h"
 
-// void Add_Local_Identifier (Token* node,  Label_Id* label_first_label_id , Label_Id* local_label_id)
-// {
-//
-// }
-//
-// void Build_func_Table_Name (Token* node , Token* block , int index , Label_Id* label_id)
-// {
-//     Token* func_node = node->left
-//     if ((node->token_type != TOKEN_KEY_WORD && node->value != OP_GOAT) && (node->left->token_type !=
-//
-//
-
-
-
-void InitializeLocalNameTable(Token* new_block_node, const Label_Id* global_name_table,  Token* param_list)
+static void Scope_Error (const char * message , int name_id , const Program_Context * context)
 {
-     assert(new_block_node);
-    assert(global_name_table);
+    fprintf (stderr , "Scope error: %s '%s'\n" , message ,
+             context->names->table_label[name_id].name_identifier);
+    exit (EXIT_FAILURE);
+}
 
-    // Проверяем и инициализируем local_label_id
-    if (new_block_node->local_label_id == NULL) {
-        new_block_node->local_label_id = (Label_Id*)calloc(1, sizeof(Label_Id));
-        if (new_block_node->local_label_id == NULL) {
-            fprintf(stderr, "Error: Memory allocation for local_label_id failed.\n");
-            exit(EXIT_FAILURE);
-        }
+
+static Scope * New_Scope (Scope * parent)
+{
+    Scope * scope = (Scope*) calloc (1 , sizeof (Scope));
+
+    if (scope == NULL) {
+
+        perror ("Cannot allocate scope");
+        exit (EXIT_FAILURE);
+    }
+    scope->parent = parent;
+
+    return scope;
+}
+
+
+static int Declare_Name (Scope * scope , int name_id , Program_Context * context)
+{
+
+    for (int i = 0; i < scope->size; i++) {
+
+        if (scope->names[i] == name_id)
+            Scope_Error ("Repeated declaration of" , name_id , context);
     }
 
-    // Инициализация таблицы имен для узла NEW_BLOCK
-    Label_Id* local_name_table = new_block_node->local_label_id;
-    local_name_table->table_size = 0;
+    if (scope->size >= MAX_LABELS || context->next_slot >= 10000) {
 
-    if (param_list == NULL) {
-        printf("Warning: param_list is NULL.\n");
+        fprintf (stderr , "Scope error: too many variables\n");
+        exit (EXIT_FAILURE);
+    }
+
+    int slot = context->next_slot++;
+    scope->names[scope->size] = name_id;
+    scope->slots[scope->size] = slot;
+    scope->size++;
+
+    return slot;
+}
+
+
+static int Find_Name (const Scope * scope , int name_id , const Program_Context * context)
+{
+
+    for (const Scope * current = scope; current != NULL; current = current->parent) {
+
+        for (int i = current->size - 1; i >= 0; i--) {
+
+            if (current->names[i] == name_id) {
+
+                return current->slots[i];
+
+            }
+        }
+    }
+    Scope_Error ("Unknown variable" , name_id , context);
+
+    return - 1;
+}
+
+
+static const Function_Info * Find_Function (int name_id , const Program_Context * context)
+{
+
+    for (int i = 0; i < context->function_count; i++) {
+
+        if (context->functions[i].name_id == name_id) {
+
+            return &context->functions[i];
+
+        }
+    }
+    Scope_Error ("Unknown function" , name_id , context);
+
+    return NULL;
+}
+
+
+static void Bind_Expression (Token * node , Scope * scope , Program_Context * context)
+{
+
+    if (node == NULL) {
+
         return;
     }
 
-    Token* current_param = param_list;
-    while (current_param != NULL) {
-        if (current_param->left == NULL) {
-            fprintf(stderr, "Error: current_param->left is NULL.\n");
-            exit(EXIT_FAILURE);
-        }
+    if (node->token_type == TOKEN_IDENTIFIER) {
 
-        int global_index = current_param->left->value;
+        node->slot = Find_Name (scope , node->value , context);
 
-        // Проверка на корректность индекса
-        if (global_index < 0 || global_index >= MAX_LABELS) {
-            fprintf(stderr, "Error: global_index (%d) is out of bounds.\n", global_index);
-            exit(EXIT_FAILURE);
-        }
-
-        if (local_name_table->table_size < MAX_LABELS) {
-            local_name_table->table_label[local_name_table->table_size] = global_name_table->table_label[global_index];
-            printf("Added param: %s\n", global_name_table->table_label[global_index].name_identifier);
-            local_name_table->table_size++;
-        } else {
-            fprintf(stderr, "Error: Local name table exceeded its maximum size.\n");
-            exit(EXIT_FAILURE);
-        }
-
-        current_param = current_param->right;
+        return;
     }
 
-    if (new_block_node->right) {
-        AddVariablesFromBody(new_block_node->right, local_name_table, global_name_table);
+    if (node->token_type == TOKEN_KEY_WORD && node->value == KW_CALL_FUNC) {
+
+        const Function_Info * function = Find_Function (node->left->value , context);
+        int argument_count = 0;
+
+        for (Token * argument = node->right; argument != NULL; argument = argument->right) {
+
+            Bind_Expression (argument->left , scope , context);
+            argument_count++;
+        }
+
+        if (argument_count != function->parameter_count) {
+
+            fprintf (stderr , "Scope error: function '%s' needs %d arguments, got %d\n" ,
+                     context->names->table_label[function->name_id].name_identifier ,
+                     function->parameter_count , argument_count);
+            exit (EXIT_FAILURE);
+        }
+
+        return;
     }
+
+    Bind_Expression (node->left , scope , context);
+    Bind_Expression (node->right , scope , context);
 }
-void ProcessFunction(Token* int_node, const Label_Id* global_name_table)
+
+
+static void Bind_Statements (Token * node , Scope * scope , Program_Context * context)
 {
-    assert(int_node);
-    assert(int_node->token_type == TOKEN_KEY_WORD);
-    assert(global_name_table);
 
-    // Узел FUNC — левый потомок узла int
-    Token* func_node = int_node->left;
-    assert(func_node && func_node->token_type == TOKEN_KEY_WORD && func_node->value == KW_INIT_FUNC);
+    for (Token * statement = node; statement != NULL; statement = statement->right) {
 
-    // Перечисление параметров — правое поддерево узла FUNC
-    Token* param_list = func_node->right;
+        assert (statement->token_type == TOKEN_OPERATOR && statement->value == OP_WHISTLE);
+        Token * operation = statement->left;
+        assert (operation != NULL);
 
-    // Узел NEW_BLOCK — правый потомок узла int
-    Token* new_block_node = int_node->right;
-    assert(new_block_node && new_block_node->token_type == TOKEN_NEW_BLOCK);
+        if (operation->value == OP_GOAT && operation->token_type == TOKEN_KEY_WORD) {
 
-    // Инициализация локальной таблицы имен для узла NEW_BLOCK
-    InitializeLocalNameTable(new_block_node, global_name_table, param_list);
+            operation->left->slot = Declare_Name (scope , operation->left->value , context);
+            Bind_Expression (operation->right , scope , context);
 
-    ReplaceGlobalIndicesWithLocal(new_block_node->right, new_block_node->local_label_id , global_name_table);
-}
+        }
 
-void ProcessTree(Token* root, const Label_Id* global_name_table) {
-    if (!root) return; // Если узел NULL, ничего не делаем
+        else if (operation->value == OP_SCORE && operation->token_type == TOKEN_OPERATOR) {
+            Bind_Expression (operation->left , scope , context);
+            Bind_Expression (operation->right , scope , context);
 
-    // Проверяем, что root имеет необходимые потомки перед доступом
-    if (root->token_type == TOKEN_KEY_WORD && root->value == OP_GOAT) {
-        if (root->right && root->right->token_type == TOKEN_NEW_BLOCK && root->right->value == NEW_BLOCK) {
-            // Обработка функции
-            ProcessFunction(root, global_name_table);
+        }
+
+        else if (operation->value == KW_PASS || operation->value == KW_DRIBBLE) {
+            Bind_Expression (operation->left , scope , context);
+            Token * block = operation->right;
+            assert (block != NULL && block->token_type == TOKEN_NEW_BLOCK);
+            block->scope = New_Scope (scope);
+            Bind_Statements (block->right , block->scope , context);
+
+        }
+
+        else if (operation->value == KW_PRINT || operation->value == KW_RETURN) {
+            Bind_Expression (operation->left , scope , context);
+
+        }
+
+        else if (operation->value == KW_CALL_FUNC) {
+            Bind_Expression (operation , scope , context);
+
+        }
+
+        else {
+            fprintf (stderr , "Scope error: unsupported statement %d\n" , operation->value);
+            exit (EXIT_FAILURE);
         }
     }
-
-    // Рекурсивный обход дерева с проверкой
-    if (root->left) {
-        ProcessTree(root->left, global_name_table);
-    }
-
-    if (root->right) {
-        ProcessTree(root->right, global_name_table);
-    }
 }
 
-void PrintLocalNameTables(Token* root)
+
+void ProcessTree (Token * root , Program_Context * context , const Label_Id * global_name_table)
 {
-    if (!root) return;
+    assert (root != NULL && context != NULL && global_name_table != NULL);
+    context->names = global_name_table;
+    context->global_scope.parent = NULL;
 
-    // Проверяем, является ли узел NEW_BLOCK
-    if (root->token_type == TOKEN_NEW_BLOCK) {
-        Label_Id* local_name_table = root->local_label_id;
+    for (Token * item = root->left; item != NULL; item = item->right) {
 
-        if (local_name_table) {
+        if (context->function_count >= MAX_LABELS) {
 
-            printf("Local Name Table for NEW_BLOCK at %p:\n", (void*)root);
-            printf("Table size: %d\n", local_name_table->table_size);
-
-            for (int i = 0; i < local_name_table->table_size; i++) {
-                Label_Id* label = local_name_table;
-                printf("  [%d]: %s (type: %d)\n", i, label->table_label[i].name_identifier, label->table_label[i].type_label);
-            }
-
-        } else {
-            printf("Local Name Table for NEW_BLOCK at %p is empty (NULL).\n", (void*)root);
+            fprintf (stderr , "Scope error: too many functions\n");
+            exit (EXIT_FAILURE);
         }
+
+        Token * function = item->left;
+        int name_id = function->left->left->value;
+
+        for (int i = 0; i < context->function_count; i++) {
+
+            if (context->functions[i].name_id == name_id)
+                Scope_Error ("Repeated function" , name_id , context);
+        }
+
+        Function_Info * info = &context->functions[context->function_count++];
+        info->node = function;
+        info->name_id = name_id;
+
+        for (Token * param = function->left->right; param != NULL; param = param->right)
+            info->parameter_count++;
     }
 
-    // Рекурсивно обходим дерево
-    PrintLocalNameTables(root->left);
-    PrintLocalNameTables(root->right);
-}
+    Bind_Statements (root->right , &context->global_scope , context);
 
+    for (int i = 0; i < context->function_count; i++) {
 
-void AddVariablesFromBody(Token* body_node, Label_Id* local_name_table, const Label_Id* global_name_table)
-{
-    assert(body_node);
-    assert(local_name_table);
-    assert(global_name_table);
+        Function_Info * info = &context->functions[i];
+        Token * body = info->node->right;
+        body->scope = New_Scope (&context->global_scope);
+        info->frame_start = context->next_slot;
 
-    Token* current_statement = body_node;
-    while (current_statement != NULL) {
-        // Проверяем, является ли текущий узел оператором WHISTLE (;)
-        if (current_statement->token_type == TOKEN_OPERATOR && current_statement->value == OP_WHISTLE) {
+        for (Token * param = info->node->left->right; param != NULL; param = param->right)
+            param->left->slot = Declare_Name (body->scope , param->left->value , context);
 
-            Token* left_child = current_statement->left;
-
-            // Проверяем, является ли левый потомок узлом int (инициализация переменной)
-            if (left_child && left_child->token_type == TOKEN_KEY_WORD && left_child->value == OP_GOAT) {
-
-                Token* variable_node = left_child->left;
-                if (!variable_node) {
-
-                    fprintf(stderr, "Error: Variable name is missing in int declaration.\n");
-                    assert(0);
-                }
-
-                int global_index = variable_node->value;
-
-                // Проверка на корректность индекса
-                if (global_index < 0 || global_index >= MAX_LABELS) {
-
-                    fprintf(stderr, "Error: global_index (%d) is out of bounds.\n", global_index);
-                    assert(0);
-                }
-
-                // Добавляем переменную в локальную таблицу имен
-                if (local_name_table->table_size < MAX_LABELS) {
-
-                    local_name_table->table_label[local_name_table->table_size] = global_name_table->table_label[global_index];
-                    printf("Added variable: %s\n", global_name_table->table_label[global_index].name_identifier);
-                    local_name_table->table_size++;
-
-                } else {
-
-                    fprintf(stderr, "Error: Local name table exceeded its maximum size.\n");
-                    assert(0);
-                }
-            }
-        }
-
-        // Переход к следующему оператору в правом поддереве
-        current_statement = current_statement->right;
+        Bind_Statements (body->right , body->scope , context);
+        info->frame_size = context->next_slot - info->frame_start;
     }
 }
 
-void ReplaceGlobalIndicesWithLocal (Token* root, const Label_Id* local_name_table , const Label_Id* global_name_table)
+
+void Free_Scopes (Token * root)
 {
-    if (!root) return;
 
-    // Проверяем, является ли узел переменной или параметром
-    if (root->token_type == TOKEN_IDENTIFIER) {
-        int global_index = root->value;
+    if (root == NULL) {
 
-        // Проверяем наличие в локальной таблице
-        int found = 0;
-        for (int i = 0; i < local_name_table->table_size; i++) {
-            if (strcmp(local_name_table->table_label[i].name_identifier,
-                       global_name_table->table_label[global_index].name_identifier) == 0) {
-                root->value = i; // Обновляем индекс на локальный
-                found = 1;
-                break;
-            }
-        }
-
-        // Если переменная не найдена в локальной таблице, сообщаем об ошибке
-        if (!found) {
-            fprintf(stderr, "Error: Variable '%s' used but not INIT.\n",
-                    global_name_table->table_label[global_index].name_identifier);
-            assert(0);
-        }
+        return;
     }
-
-    // Рекурсивно обрабатываем левое и правое поддерево
-    ReplaceGlobalIndicesWithLocal(root->left, local_name_table , global_name_table);
-    ReplaceGlobalIndicesWithLocal(root->right, local_name_table , global_name_table);
+    Free_Scopes (root->left);
+    Free_Scopes (root->right);
+    free (root->scope);
+    root->scope = NULL;
 }

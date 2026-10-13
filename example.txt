@@ -1,0 +1,22 @@
+/:first_half
+    start_game
+        SSUUII 1 whistle
+    end_game pass stadium_open n pressing 1 stadium_close
+
+    SSUUII n assist transfer $factorial$ stadium_open offside n foul 1 stadium_close whistle
+/:second_half GOAT $factorial$ stadium_open GOAT n stadium_close
+
+/:first_half
+    GOAT result score transfer $factorial$ stadium_open offside 5 stadium_close whistle
+    VAR result whistle
+
+    GOAT i score 1 whistle
+    GOAT sum score 0 whistle
+    start_game
+        GOAT square score i assist i whistle
+        sum score sum goal square whistle
+        i score i goal 1 whistle
+    end_game dribble stadium_open i underdog 6 stadium_close
+
+    VAR sum whistle
+/:second_half GOAT $main$ stadium_open stadium_close

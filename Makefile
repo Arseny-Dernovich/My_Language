@@ -18,7 +18,7 @@ OBJS = $(SRCS:.cpp=.o)
 $(TARGET): $(OBJS)
 	$(CXX) $(OBJS) -o $(TARGET)
 
-%.o: %.cpp
+%.o: %.cpp Read.h Back_end.h My_features.h
 	$(CXX) $(CXXSTD) $(CXXFLAGS) -c $< -o $@
 
 .PHONY: clean
