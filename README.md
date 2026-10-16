@@ -1,13 +1,7 @@
-Failed to create stream fd: Operation not permitted
-Failed to create stream fd: Operation not permitted
-Failed to create stream fd: Operation not permitted
+
 # My_Language
 
 Учебный компилятор небольшого императивного языка с футбольными ключевыми словами. Исходный текст превращается в токены, синтаксическое дерево, а затем — в ассемблер для стекового [Processor](https://github.com/Arseny-Dernovich/Processor).
-
-Проект написан на C++11. Пока он рассчитан на целочисленную арифметику и небольшие программы, а не на промышленную обработку ошибок.
-
-Подробное описание синтаксиса, грамматики, областей видимости, рекурсивных вызовов, backend, тестов и ограничений проекта находится в [документации проекта](docs/PROJECT_DOCUMENTATION.md).
 
 ## Сборка и запуск
 
